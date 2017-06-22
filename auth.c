@@ -43,6 +43,10 @@ struct auth_s *new_auth(void) {
 	tmp->hashnt = 0;
 	tmp->hashlm = 0;
 	tmp->flags = 0;
+// Naresh begins
+	tmp->hashb64pwd=0;
+	memset(tmp->b64pwd,0, MINIBUF_SIZE);
+// Naresh ends
 
 	return tmp;
 }
@@ -52,6 +56,9 @@ struct auth_s *copy_auth(struct auth_s *dst, struct auth_s *src, int fullcopy) {
 	dst->hashnt = src->hashnt;
 	dst->hashlm = src->hashlm;
 	dst->flags = src->flags;
+// Naresh begins
+	dst->hashb64pwd = src->hashb64pwd;
+// Naresh ends
 
 	strlcpy(dst->domain, src->domain, MINIBUF_SIZE);
 	strlcpy(dst->workstation, src->workstation, MINIBUF_SIZE);
@@ -64,11 +71,16 @@ struct auth_s *copy_auth(struct auth_s *dst, struct auth_s *src, int fullcopy) {
 			memcpy(dst->passnt, src->passnt, MINIBUF_SIZE);
 		if (src->passlm)
 			memcpy(dst->passlm, src->passlm, MINIBUF_SIZE);
+// Naresh begins
+		if (src->b64pwd)
+			memcpy(dst->b64pwd, src->b64pwd, MINIBUF_SIZE);
+// Naresh ends
 	} else {
 		memset(dst->user, 0, MINIBUF_SIZE);
 		memset(dst->passntlm2, 0, MINIBUF_SIZE);
 		memset(dst->passnt, 0, MINIBUF_SIZE);
 		memset(dst->passlm, 0, MINIBUF_SIZE);
+		memset(dst->b64pwd, 0, MINIBUF_SIZE);
 	}
 
 	return dst;
@@ -100,6 +112,14 @@ void dump_auth(struct auth_s *creds) {
 	printf("HashNT:     %d\n", creds->hashnt);
 	printf("HashLM:     %d\n", creds->hashlm);
 	printf("Flags:      %X\n", creds->flags);
+// Naresh beings
+	printf("HashB64Pwd:	%d\n", creds->hashb64pwd);
+	if(creds->b64pwd) {
+		tmp = printmem(creds->b64pwd, 16, 8);
+		printf("B64Pass: %s\n", tmp);
+		free(tmp);
+	}
+// Naresh ends
 	if (creds->passntlm2) {
 		tmp = printmem(creds->passntlm2, 16, 8);
 		printf("PassNTLMv2: %s\n", tmp);

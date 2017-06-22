@@ -77,6 +77,10 @@ int serialize = 0;
 int scanner_plugin = 0;
 long scanner_plugin_maxsize = 0;
 
+// Naresh begins
+static int httpauth=0;
+// Naresh ends
+
 /*
  * List of finished threads. Each forward_request() thread adds itself to it when
  * finished. Main regularly joins and removes all tid's in there.
@@ -693,7 +697,9 @@ int main(int argc, char **argv) {
 	plist_t rules = NULL;
 	config_t cf = NULL;
 	char *magic_detect = NULL;
-
+// Naresh begins
+	char *cb64pwd=NULL;
+// Naresh ends
 	g_creds = new_auth();
 	cuser = new(MINIBUF_SIZE);
 	cdomain = new(MINIBUF_SIZE);
@@ -705,6 +711,9 @@ int main(int argc, char **argv) {
 	cpidfile = new(MINIBUF_SIZE);
 	cuid = new(MINIBUF_SIZE);
 	cauth = new(MINIBUF_SIZE);
+// Naresh begins
+	cb64pwd = new(MINIBUF_SIZE);
+// Naresh ends
 
 	openlog("cntlm", LOG_CONS, LOG_DAEMON);
 
@@ -1026,6 +1035,23 @@ int main(int argc, char **argv) {
 			free(tmp);
 		}
 
+// Naresh begins
+		/*
+		 * Get the value of HTTPAUTH
+		 */
+		tmp = new(MINIBUF_SIZE);
+		CFG_DEFAULT(cf, "HTTPAUTH", tmp, MINIBUF_SIZE);
+
+		if (!strcasecmp("1", tmp)) {
+			httpauth = 1;
+			g_creds->hashb64pwd=1;
+
+		        if(debug)
+                		printf("HTTPAUTH is set to 1\n");
+		}
+		free(tmp);
+// Naresh ends
+
 		/*
 		 * Bind the rest of SOCKS5 service ports.
 		 */
@@ -1088,6 +1114,10 @@ int main(int argc, char **argv) {
 		CFG_DEFAULT(cf, "PassLM", cpasslm, MINIBUF_SIZE);
 		CFG_DEFAULT(cf, "Username", cuser, MINIBUF_SIZE);
 		CFG_DEFAULT(cf, "Workstation", cworkstation, MINIBUF_SIZE);
+
+// Naresh begins
+        CFG_DEFAULT(cf, "B64Password", cb64pwd, MINIBUF_SIZE);
+// Naresh ends
 
 		tmp = new(MINIBUF_SIZE);
 		CFG_DEFAULT(cf, "Flags", tmp, MINIBUF_SIZE);
@@ -1265,7 +1295,22 @@ int main(int argc, char **argv) {
 			auth_memcpy(g_creds, passlm, tmp, 16);
 			free(tmp);
 		}
+// Naresh begins
+		if (strlen(cb64pwd)) {
+			tmp = scanmem(cb64pwd, 8);
+			if (!tmp) {
+				syslog(LOG_ERR, "Invalid B64Password hash, terminating\n");
+				exit(1);
+			}
+			auth_memcpy(g_creds, b64pwd, tmp, 16);
+			free(tmp);
+		}
+// Naresh ends
+
 	} else {
+// Naresh begins
+//	auth_strcpy(g_creds, plaintextpwd, cpassword);
+// Naresh ends
 		if (g_creds->hashnt || magic_detect || interactivehash) {
 			tmp = ntlm_hash_nt_password(cpassword);
 			auth_memcpy(g_creds, passnt, tmp, 21);
@@ -1279,6 +1324,23 @@ int main(int argc, char **argv) {
 			auth_memcpy(g_creds, passntlm2, tmp, 16);
 			free(tmp);
 		}
+// Naresh begins
+		if (g_creds->hashb64pwd || magic_detect || interactivehash) {
+		    tmp = new(MINIBUF_SIZE);
+		    strcpy(tmp, cuser);
+		    strcat(tmp, ":");
+		    strcat(tmp, cpassword);
+            	    to_base64(MEM(cb64pwd,unsigned char, 0),
+	                  MEM(tmp, unsigned char, 0),
+        	          strlen(tmp), BUFSIZE-strlen(tmp));
+
+		    auth_memcpy(g_creds, b64pwd, cb64pwd, 				strlen(cb64pwd));
+		    free(tmp);
+
+			if(debug)
+		                printf("The PassWord hash is %s\n", cb64pwd);
+		}
+// Naresh ends
 		memset(cpassword, 0, strlen(cpassword));
 	}
 
@@ -1294,6 +1356,9 @@ int main(int argc, char **argv) {
 	free(cpassnt);
 	free(cpasslm);
 	free(cauth);
+// Naresh begins
+    free(cb64pwd);
+// Naresh ends
 
 	/*
 	 * Try known NTLM auth combinations and print which ones work.
@@ -1323,6 +1388,13 @@ int main(int argc, char **argv) {
 				tmp, g_creds->user, g_creds->domain);
 			free(tmp);
 		}
+// Naresh begins
+		if (g_creds->hashb64pwd) {
+            tmp = printmem(g_creds->b64pwd, 16, 8);
+            printf("HashB64Pwd          %s\n", tmp);
+            free(tmp);
+		}
+// Naresh ends
 		goto bailout;
 	}
 
